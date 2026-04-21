@@ -1,0 +1,13 @@
+fastapi==0.111.0
+uvicorn==0.30.0
+redis==5.0.4
+psycopg2-binary==2.9.9
+kafka-python==2.0.2
+xgboost==2.0.3
+scikit-learn==1.4.2
+numpy==1.26.4
+pandas==2.2.2
+shap==0.45.0
+pydantic==2.7.1
+prometheus-client==0.20.0
+python-dotenv==1.0.1

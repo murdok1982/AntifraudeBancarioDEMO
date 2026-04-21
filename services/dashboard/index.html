@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fraud Detection Platform</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:       #0d1117;
+    --surface:  #161b22;
+    --border:   #30363d;
+    --text:     #e6edf3;
+    --muted:    #8b949e;
+    --green:    #00d4aa;
+    --yellow:   #f39c12;
+    --red:      #e74c3c;
+    --blue:     #58a6ff;
+    --purple:   #bc8cff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; }
+
+  header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
+  header h1 { font-size: 18px; font-weight: 600; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  .status-bar { margin-left: auto; font-size: 13px; color: var(--muted); }
+  .status-bar span { color: var(--green); }
+
+  main { padding: 20px 24px; max-width: 1600px; margin: 0 auto; }
+
+  /* KPI cards */
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .kpi-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
+  .kpi-value { font-size: 28px; font-weight: 700; line-height: 1; }
+  .kpi.green .kpi-value { color: var(--green); }
+  .kpi.yellow .kpi-value { color: var(--yellow); }
+  .kpi.red .kpi-value { color: var(--red); }
+  .kpi.blue .kpi-value { color: var(--blue); }
+  .kpi-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  /* Charts row */
+  .charts-row { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .card h2 { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 12px; }
+  .chart-wrap { position: relative; height: 220px; }
+
+  /* Bottom row */
+  .bottom-row { display: grid; grid-template-columns: 1fr 380px; gap: 12px; }
+
+  /* Transactions table */
+  .txn-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .txn-table th { text-align: left; color: var(--muted); font-weight: 500; padding: 6px 8px; border-bottom: 1px solid var(--border); font-size: 11px; text-transform: uppercase; }
+  .txn-table td { padding: 7px 8px; border-bottom: 1px solid rgba(48,54,61,.5); vertical-align: middle; }
+  .txn-row { animation: slideIn .3s ease; }
+  @keyframes slideIn { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:none} }
+
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .badge.APPROVE { background: rgba(0,212,170,.15); color: var(--green); }
+  .badge.REVIEW  { background: rgba(243,156,18,.15); color: var(--yellow); }
+  .badge.BLOCK   { background: rgba(231,76,60,.15); color: var(--red); }
+
+  .score-bar-wrap { width: 80px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .score-bar { height: 100%; border-radius: 3px; transition: width .3s; }
+
+  /* Cases panel */
+  .case-item { padding: 10px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; font-size: 13px; }
+  .case-item:hover { border-color: var(--blue); }
+  .case-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .case-actions { display: flex; gap: 6px; margin-top: 8px; }
+  .btn { padding: 4px 10px; border-radius: 5px; border: none; cursor: pointer; font-size: 12px; font-weight: 600; }
+  .btn-fraud { background: rgba(231,76,60,.2); color: var(--red); border: 1px solid var(--red); }
+  .btn-fp    { background: rgba(0,212,170,.1); color: var(--green); border: 1px solid var(--green); }
+  .btn:hover { opacity: .8; }
+
+  .skeleton { background: linear-gradient(90deg, var(--surface) 25%, var(--border) 50%, var(--surface) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 6px; }
+  @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+  .tag-rules { font-size: 10px; color: var(--purple); }
+  .offline { color: var(--red); font-size: 12px; }
+  .scrollable { max-height: 340px; overflow-y: auto; }
+  .scrollable::-webkit-scrollbar { width: 4px; }
+  .scrollable::-webkit-scrollbar-track { background: transparent; }
+  .scrollable::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="dot" id="statusDot"></div>
+  <h1>Fraud Detection Platform</h1>
+  <div class="status-bar">Última actualización: <span id="lastUpdate">—</span></div>
+</header>
+<main>
+  <!-- KPIs -->
+  <div class="kpi-grid">
+    <div class="kpi blue">  <div class="kpi-label">Total Transacciones</div><div class="kpi-value" id="kpiTotal">—</div><div class="kpi-sub">acumulado</div></div>
+    <div class="kpi green"> <div class="kpi-label">Aprobadas</div>         <div class="kpi-value" id="kpiApprove">—</div><div class="kpi-sub" id="kpiApproveRate">—</div></div>
+    <div class="kpi yellow"><div class="kpi-label">En Revisión</div>       <div class="kpi-value" id="kpiReview">—</div><div class="kpi-sub" id="kpiReviewRate">—</div></div>
+    <div class="kpi red">   <div class="kpi-label">Bloqueadas</div>        <div class="kpi-value" id="kpiBlock">—</div><div class="kpi-sub" id="kpiBlockRate">—</div></div>
+    <div class="kpi">       <div class="kpi-label">Score Medio</div>       <div class="kpi-value" id="kpiScore" style="color:var(--purple)">—</div><div class="kpi-sub">últimas 1000</div></div>
+    <div class="kpi">       <div class="kpi-label">Latencia Media</div>    <div class="kpi-value" id="kpiLatency" style="color:var(--blue)">—</div><div class="kpi-sub">ms</div></div>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts-row">
+    <div class="card">
+      <h2>Decisiones en tiempo real</h2>
+      <div class="chart-wrap"><canvas id="chartDecisions"></canvas></div>
+    </div>
+    <div class="card">
+      <h2>Top Reglas Disparadas</h2>
+      <div class="chart-wrap"><canvas id="chartRules"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Bottom -->
+  <div class="bottom-row">
+    <div class="card">
+      <h2>Últimas Transacciones</h2>
+      <div class="scrollable">
+        <table class="txn-table">
+          <thead><tr>
+            <th>ID</th><th>Cuenta</th><th>Importe</th><th>Canal</th>
+            <th>Decisión</th><th>Score</th><th>Reglas</th><th>Tiempo</th>
+          </tr></thead>
+          <tbody id="txnBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Casos Pendientes</h2>
+      <div class="scrollable" id="casesList">
+        <div style="color:var(--muted);font-size:13px;padding:20px 0;text-align:center">Cargando casos...</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+const API_SCORING = '/api/scoring';
+const API_CASES   = '/api/cases';
+
+// ── Chart setup ────────────────────────────────────────────────────────────
+const MAX_POINTS = 60;
+const timeLabels = [];
+const approveData = [], reviewData = [], blockData = [];
+
+const ctxD = document.getElementById('chartDecisions').getContext('2d');
+const chartDecisions = new Chart(ctxD, {
+  type: 'line',
+  data: {
+    labels: timeLabels,
+    datasets: [
+      { label:'APPROVE', data: approveData, borderColor:'#00d4aa', backgroundColor:'rgba(0,212,170,.08)', tension:.4, pointRadius:0, borderWidth:2, fill:true },
+      { label:'REVIEW',  data: reviewData,  borderColor:'#f39c12', backgroundColor:'rgba(243,156,18,.08)', tension:.4, pointRadius:0, borderWidth:2, fill:true },
+      { label:'BLOCK',   data: blockData,   borderColor:'#e74c3c', backgroundColor:'rgba(231,76,60,.08)',  tension:.4, pointRadius:0, borderWidth:2, fill:true },
+    ]
+  },
+  options: {
+    responsive:true, maintainAspectRatio:false, animation:{ duration:200 },
+    plugins:{ legend:{ labels:{ color:'#8b949e', boxWidth:12 } } },
+    scales:{
+      x:{ ticks:{ color:'#8b949e', maxTicksLimit:8 }, grid:{ color:'rgba(48,54,61,.5)' } },
+      y:{ ticks:{ color:'#8b949e' }, grid:{ color:'rgba(48,54,61,.5)' }, beginAtZero:true }
+    }
+  }
+});
+
+const ctxR = document.getElementById('chartRules').getContext('2d');
+const chartRules = new Chart(ctxR, {
+  type: 'bar',
+  data: { labels:[], datasets:[{ data:[], backgroundColor:'rgba(188,140,255,.7)', borderRadius:4 }] },
+  options: {
+    indexAxis:'y', responsive:true, maintainAspectRatio:false, animation:{ duration:300 },
+    plugins:{ legend:{ display:false } },
+    scales:{
+      x:{ ticks:{ color:'#8b949e' }, grid:{ color:'rgba(48,54,61,.5)' } },
+      y:{ ticks:{ color:'#8b949e', font:{ size:10 } }, grid:{ display:false } }
+    }
+  }
+});
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function fmt(n){ return n?.toLocaleString('es-ES') ?? '—'; }
+function fmtEur(n){ return n != null ? '€'+n.toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—'; }
+function timeAgo(iso){
+  const s = Math.floor((Date.now()-new Date(iso))/1000);
+  if(s<60) return s+'s';
+  if(s<3600) return Math.floor(s/60)+'m';
+  return Math.floor(s/3600)+'h';
+}
+function scoreColor(s){ return s>=.7?'#e74c3c':s>=.35?'#f39c12':'#00d4aa'; }
+function setEl(id,v){ const e=document.getElementById(id); if(e) e.textContent=v; }
+
+// ── Stats polling ─────────────────────────────────────────────────────────
+let prevApprove=0, prevReview=0, prevBlock=0;
+let online = false;
+
+async function fetchStats(){
+  try {
+    const r = await fetch(`${API_SCORING}/v2/stats`, {signal: AbortSignal.timeout(3000)});
+    if(!r.ok) throw new Error(r.status);
+    const d = await r.json();
+
+    if(!online){ online=true; document.getElementById('statusDot').style.background='#00d4aa'; }
+    document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('es-ES');
+
+    setEl('kpiTotal',   fmt(d.total));
+    setEl('kpiApprove', fmt(d.approve));
+    setEl('kpiReview',  fmt(d.review));
+    setEl('kpiBlock',   fmt(d.block));
+    setEl('kpiApproveRate', d.total ? Math.round(d.approve/d.total*100)+'%' : '0%');
+    setEl('kpiReviewRate',  d.total ? Math.round(d.review /d.total*100)+'%' : '0%');
+    setEl('kpiBlockRate',   d.block_rate_pct != null ? d.block_rate_pct+'%' : '0%');
+    setEl('kpiScore',   d.avg_score ?? '—');
+    setEl('kpiLatency', d.avg_latency_ms != null ? d.avg_latency_ms+'ms' : '—');
+
+    // chart data point
+    const now = new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    timeLabels.push(now);
+    approveData.push(d.approve - prevApprove);
+    reviewData.push(d.review - prevReview);
+    blockData.push(d.block - prevBlock);
+    if(timeLabels.length > MAX_POINTS){ timeLabels.shift(); approveData.shift(); reviewData.shift(); blockData.shift(); }
+    prevApprove=d.approve; prevReview=d.review; prevBlock=d.block;
+    chartDecisions.update();
+
+    // rules chart
+    if(d.rules_count && Object.keys(d.rules_count).length){
+      const sorted = Object.entries(d.rules_count).sort((a,b)=>b[1]-a[1]).slice(0,7);
+      chartRules.data.labels   = sorted.map(x=>x[0].replace('_',' '));
+      chartRules.data.datasets[0].data = sorted.map(x=>x[1]);
+      chartRules.update();
+    }
+
+    // transactions table
+    if(d.recent?.length) renderTxnTable(d.recent);
+  } catch(e){
+    online=false;
+    document.getElementById('statusDot').style.background='#e74c3c';
+    document.getElementById('lastUpdate').innerHTML = '<span class="offline">desconectado</span>';
+  }
+}
+
+function renderTxnTable(rows){
+  const tbody = document.getElementById('txnBody');
+  const existing = new Set([...tbody.querySelectorAll('tr')].map(r=>r.dataset.id));
+  const newRows = rows.filter(r=>!existing.has(r.transaction_id)).slice(0,5);
+
+  newRows.forEach(d => {
+    const tr = document.createElement('tr');
+    tr.className='txn-row'; tr.dataset.id=d.transaction_id;
+    const pct = Math.round(d.score*100);
+    const rules = (d.rules_triggered||[]).join(', ') || '—';
+    tr.innerHTML = `
+      <td style="font-family:monospace;font-size:11px">${d.transaction_id.slice(0,8)}</td>
+      <td>${d.account_id}</td>
+      <td style="text-align:right;font-weight:600">${fmtEur(d.amount)}</td>
+      <td><span style="font-size:11px;color:var(--muted)">${d.channel||'?'}</span></td>
+      <td><span class="badge ${d.decision}">${d.decision}</span></td>
+      <td>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="score-bar-wrap"><div class="score-bar" style="width:${pct}%;background:${scoreColor(d.score)}"></div></div>
+          <span style="font-size:11px;color:${scoreColor(d.score)}">${d.score.toFixed(3)}</span>
+        </div>
+      </td>
+      <td class="tag-rules" style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${rules}">${rules}</td>
+      <td style="font-size:11px;color:var(--muted)">${timeAgo(d.timestamp)}</td>
+    `;
+    tbody.insertBefore(tr, tbody.firstChild);
+  });
+
+  // keep max 20 rows
+  while(tbody.rows.length > 20) tbody.deleteRow(tbody.rows.length-1);
+}
+
+// ── Cases polling ──────────────────────────────────────────────────────────
+async function fetchCases(){
+  try {
+    const r = await fetch(`${API_CASES}/v1/cases?status=OPEN&limit=10`, {signal: AbortSignal.timeout(3000)});
+    if(!r.ok) throw new Error(r.status);
+    const d = await r.json();
+    renderCases(d.cases||[]);
+  } catch(e){
+    document.getElementById('casesList').innerHTML =
+      `<div style="color:var(--muted);font-size:12px;padding:12px">Error cargando casos</div>`;
+  }
+}
+
+function renderCases(cases){
+  const el = document.getElementById('casesList');
+  if(!cases.length){
+    el.innerHTML=`<div style="color:var(--muted);font-size:13px;padding:20px 0;text-align:center">No hay casos pendientes ✓</div>`;
+    return;
+  }
+  el.innerHTML = cases.map(c=>`
+    <div class="case-item">
+      <div class="case-header">
+        <span style="font-size:11px;color:var(--muted)">${c.account_id}</span>
+        <span class="badge ${c.decision}">${c.decision}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-weight:600">${fmtEur(c.amount)}</span>
+        <span style="font-size:11px;color:${scoreColor(c.score)}">score: ${parseFloat(c.score).toFixed(3)}</span>
+      </div>
+      <div style="font-size:10px;color:var(--purple);margin-top:4px">${(c.rules_triggered||[]).join(', ')||'—'}</div>
+      <div class="case-actions">
+        <button class="btn btn-fraud" onclick="updateCase('${c.case_id}','CLOSED_FRAUD')">Confirmar Fraude</button>
+        <button class="btn btn-fp"    onclick="updateCase('${c.case_id}','CLOSED_FALSE_POSITIVE')">Falso Positivo</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function updateCase(id, status){
+  try {
+    await fetch(`${API_CASES}/v1/cases/${id}/status`, {
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({status})
+    });
+    fetchCases();
+  } catch(e){ alert('Error actualizando caso'); }
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+fetchStats();
+fetchCases();
+setInterval(fetchStats, 2000);
+setInterval(fetchCases, 5000);
+</script>
+</body>
+</html>
